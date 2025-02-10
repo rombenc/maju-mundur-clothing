@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: maju-mundur
+  datasource:
+    url: jdbc:postgresql://localhost:5432/${DB_NAME}
+    username: ${DB_USERPASS}
+    password: ${DB_USERPASS}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      auto-commit: false
+      pool-name: HikariPool-1
+  jpa:
+    hibernate:
+      ddl-auto: update
+  mail:
+    host:
+    port:
+    username: ${EMAIL_USERNAME}}
+    password: ${EMAIL_PW}
+server:
+  servlet:
+    context-path: /api/v1
+security:
+  jwt:
+    secret-key: ${SECRET_KEY}
+    expiration-time: 864000
