@@ -3,17 +3,19 @@ package com.majumundur.clothing.service.impl;
 import com.majumundur.clothing.dto.CommonResponse;
 import com.majumundur.clothing.dto.request.OrderRequest;
 import com.majumundur.clothing.dto.response.OrderResponse;
-import com.majumundur.clothing.entity.Cart;
-import com.majumundur.clothing.entity.Customer;
-import com.majumundur.clothing.entity.Order;
-import com.majumundur.clothing.entity.User;
+import com.majumundur.clothing.entity.*;
 import com.majumundur.clothing.exception.OrderException;
+import com.majumundur.clothing.exception.ProductException;
 import com.majumundur.clothing.repository.CartRepository;
 import com.majumundur.clothing.repository.OrderRepository;
+import com.majumundur.clothing.repository.ProductRepository;
 import com.majumundur.clothing.service.AuthenticationService;
 import com.majumundur.clothing.service.OrderService;
+import jakarta.persistence.LockModeType;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -26,8 +28,10 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final CartRepository cartRepository;
     private final AuthenticationService authenticationService;
+    private final ProductRepository productRepository;
 
     @Override
+    @Transactional
     public CommonResponse<OrderResponse> createOrder(OrderRequest request) {
         User user = authenticationService.getLoginUser();
         Customer customer = user.getCustomer();
@@ -36,11 +40,14 @@ public class OrderServiceImpl implements OrderService {
             throw new OrderException("Only customers can place orders", 403);
         }
 
-        List<Cart> cartItems = cartRepository.findAll();
+        // Ambil hanya cart milik customer yang belum di-checkout
+        List<Cart> cartItems = cartRepository.findByCustomerAndOrderIsNull(customer);
 
         if (cartItems.isEmpty()) {
             throw new OrderException("Cart is empty", 400);
         }
+
+        validateStock(cartItems);
 
         BigDecimal totalPrice = cartItems.stream()
                 .map(Cart::getPrice)
@@ -51,18 +58,57 @@ public class OrderServiceImpl implements OrderService {
                 .orderDate(LocalDateTime.now())
                 .status("PENDING")
                 .totalPrice(totalPrice)
-                .carts(cartItems)
                 .build();
 
         Order savedOrder = orderRepository.save(order);
 
-        cartRepository.deleteAll(cartItems);
+        // Hubungkan semua cart dengan order yang baru dibuat
+        cartItems.forEach(cart -> cart.setOrder(savedOrder));
+        cartRepository.saveAll(cartItems);
+
+        // Setelah order sukses tersimpan, baru kurangi stok
+        cartItems.forEach(this::reduceProductStock);
 
         return CommonResponse.<OrderResponse>builder()
                 .statusCode(201)
                 .message("Order successfully created")
                 .data(toOrderResponse(savedOrder))
                 .build();
+    }
+
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    private void reduceProductStock(Cart cartItem) {
+        Product product = productRepository.findById(cartItem.getProduct().getId())
+                .orElseThrow(() -> new ProductException("Product not found", 404));
+
+        if (product.getStock() < cartItem.getQuantity()) {
+            throw new OrderException("Insufficient stock for product: " + product.getName(), 400);
+        }
+
+        product.setStock(product.getStock() - cartItem.getQuantity());
+        productRepository.save(product);
+    }
+
+    private void validateStock(List<Cart> cartItems) {
+        cartItems.forEach(cartItem -> {
+            Product product = cartItem.getProduct();
+            if (product.getStock() < cartItem.getQuantity()) {
+                throw new OrderException("Insufficient stock for product: " + product.getName(), 400);
+            }
+        });
+    }
+
+    @Transactional
+    public void rollbackOrderStock(String orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new OrderException("Order not found", 404));
+
+        order.getCarts().forEach(cartItem -> {
+            Product product = cartItem.getProduct();
+            product.setStock(product.getStock() + cartItem.getQuantity());
+            productRepository.save(product);
+        });
     }
 
     @Override

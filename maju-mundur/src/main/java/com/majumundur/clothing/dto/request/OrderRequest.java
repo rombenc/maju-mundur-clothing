@@ -7,5 +7,6 @@ import lombok.Setter;
 @Setter
 public class OrderRequest {
     private String customerId;
-    private String productIds;
+    private String shippingAddress;
+    private String paymentMethod;
 }

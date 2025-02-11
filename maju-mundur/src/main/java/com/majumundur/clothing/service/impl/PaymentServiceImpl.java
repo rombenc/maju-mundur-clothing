@@ -9,15 +9,19 @@ import com.majumundur.clothing.entity.Payment;
 import com.majumundur.clothing.entity.User;
 import com.majumundur.clothing.exception.OrderException;
 import com.majumundur.clothing.exception.PaymentException;
+import com.majumundur.clothing.repository.CustomerRepository;
 import com.majumundur.clothing.repository.OrderRepository;
 import com.majumundur.clothing.repository.PaymentRepository;
 import com.majumundur.clothing.service.AuthenticationService;
 import com.majumundur.clothing.service.PaymentService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -26,39 +30,56 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
     private final AuthenticationService authenticationService;
+    private final CustomerRepository customerRepository;
 
     @Override
+    @Transactional
+    @PreAuthorize("hasAuthority('CUSTOMER')")
     public CommonResponse<PaymentResponse> makePayment(PaymentRequest request) {
         User user = authenticationService.getLoginUser();
-        Customer customer = user.getCustomer();
-
-        if (customer == null) {
-            throw new PaymentException("Only customers can make payments", 403);
-        }
+        Customer customer = customerRepository.findByUser(user)
+                .orElseThrow(() -> new PaymentException("Only customers can make payments", 403));
 
         Order order = orderRepository.findById(request.getOrderId())
                 .orElseThrow(() -> new OrderException("Order not found", 404));
 
+        // Pastikan order ini milik customer yang login
         if (!order.getCustomer().getId().equals(customer.getId())) {
             throw new PaymentException("This order does not belong to you", 403);
+        }
+
+        // Cek apakah order sudah dibayar sebelumnya
+        Optional<Payment> existingPayment = paymentRepository.findByOrder(order);
+        if (existingPayment.isPresent() && existingPayment.get().getStatus().equals("SUCCESS")) {
+            throw new PaymentException("This order has already been paid.", 400);
+        }
+
+        // Validasi jumlah pembayaran harus sama dengan total order price
+        if (request.getAmount().compareTo(order.getTotalPrice()) != 0) {
+            throw new PaymentException("Payment amount must match total order price.", 400);
         }
 
         Payment payment = Payment.builder()
                 .order(order)
                 .paymentDate(LocalDateTime.now())
-                .amount(order.getTotalPrice())
+                .amount(order.getTotalPrice()) // Pastikan jumlah sama dengan total order
                 .paymentMethod(request.getPaymentMethod())
-                .status("PENDING")
+                .status("SUCCESS")
                 .build();
 
         Payment savedPayment = paymentRepository.save(payment);
 
+        // Update status order menjadi "PAID"
+        order.setStatus("PAID");
+        orderRepository.save(order);
+
         return CommonResponse.<PaymentResponse>builder()
                 .statusCode(201)
-                .message("Payment initiated successfully")
+                .message("Payment completed successfully")
                 .data(toPaymentResponse(savedPayment))
                 .build();
     }
+
 
     @Override
     public CommonResponse<List<PaymentResponse>> getPaymentsByCustomer() {

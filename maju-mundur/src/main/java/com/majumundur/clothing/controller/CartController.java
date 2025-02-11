@@ -6,6 +6,7 @@ import com.majumundur.clothing.dto.response.CartResponse;
 import com.majumundur.clothing.service.CartService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -18,10 +19,12 @@ public class CartController {
     private final CartService cartService;
 
     @PostMapping
+    @PreAuthorize("hasAuthority('CUSTOMER')")
     public ResponseEntity<CommonResponse<CartResponse>> addToCart(@RequestBody CartRequest request) {
         CommonResponse<CartResponse> response = cartService.addToCart(request);
         return ResponseEntity.status(response.getStatusCode()).body(response);
     }
+
 
     @GetMapping
     public ResponseEntity<CommonResponse<List<CartResponse>>> getCartItems() {

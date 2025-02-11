@@ -4,11 +4,15 @@ import com.majumundur.clothing.dto.CommonResponse;
 import com.majumundur.clothing.dto.request.CartRequest;
 import com.majumundur.clothing.dto.response.CartResponse;
 import com.majumundur.clothing.entity.Cart;
+import com.majumundur.clothing.entity.Customer;
 import com.majumundur.clothing.entity.Product;
 import com.majumundur.clothing.entity.User;
 import com.majumundur.clothing.exception.CartException;
+import com.majumundur.clothing.exception.CustomerNotFoundException;
 import com.majumundur.clothing.exception.ProductException;
+import com.majumundur.clothing.exception.ResourceNotFoundException;
 import com.majumundur.clothing.repository.CartRepository;
+import com.majumundur.clothing.repository.CustomerRepository;
 import com.majumundur.clothing.repository.ProductRepository;
 import com.majumundur.clothing.service.AuthenticationService;
 import com.majumundur.clothing.service.CartService;
@@ -24,26 +28,27 @@ public class CartServiceImpl implements CartService {
 
     private final CartRepository cartRepository;
     private final ProductRepository productRepository;
+    private final CustomerRepository customerRepository;
     private final AuthenticationService authenticationService;
 
     @Override
     public CommonResponse<CartResponse> addToCart(CartRequest request) {
         User user = authenticationService.getLoginUser();
 
-        // Cek apakah produk tersedia
+        Customer customer = customerRepository.findByUser(user)
+                .orElseThrow(() -> new CustomerNotFoundException("Customer not found", 404));
+
         Product product = productRepository.findById(request.getProductId())
                 .orElseThrow(() -> new ProductException("Product not found", 404));
 
-        // Cek apakah stok mencukupi
         if (request.getQuantity() > product.getStock()) {
             throw new CartException("Insufficient stock", 400);
         }
 
-        // Hitung total harga berdasarkan jumlah
         BigDecimal totalPrice = product.getPrice().multiply(BigDecimal.valueOf(request.getQuantity()));
 
-        // Simpan ke database
         Cart cart = Cart.builder()
+                .customer(customer)
                 .product(product)
                 .quantity(request.getQuantity())
                 .price(totalPrice)
@@ -57,6 +62,7 @@ public class CartServiceImpl implements CartService {
                 .data(toCartResponse(savedCart))
                 .build();
     }
+
 
     @Override
     public CommonResponse<List<CartResponse>> getCartItems() {
