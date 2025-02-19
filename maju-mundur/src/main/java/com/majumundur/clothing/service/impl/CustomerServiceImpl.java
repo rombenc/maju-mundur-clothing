@@ -53,7 +53,6 @@ public class CustomerServiceImpl implements CustomerService {
                 .build();
     }
 
-
     @Override
     public CommonResponse<List<CustomerResponse>> getAllCustomer() {
         List<CustomerResponse> customerResponses = repository.findAll()

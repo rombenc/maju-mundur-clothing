@@ -12,6 +12,8 @@ import java.time.LocalDateTime;
 public class ProductResponse {
     private String id;
 
+    private String merchantId;
+
     private String productCode;
 
     private String name;

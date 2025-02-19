@@ -4,20 +4,23 @@ import com.majumundur.clothing.dto.CommonResponse;
 import com.majumundur.clothing.dto.request.ProductRequest;
 import com.majumundur.clothing.dto.response.ProductResponse;
 import com.majumundur.clothing.entity.Product;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 public interface ProductService {
 
-    CommonResponse<Object> createProduct(String userMerchantId, ProductRequest payload);
+    @Transactional
+    CommonResponse<ProductResponse> createProduct(ProductRequest request);
 
-    CommonResponse<List<Product>> getAllProducts();
+    @Transactional
+    CommonResponse<ProductResponse> updateProduct(String productId, ProductRequest request);
+
+    CommonResponse<List<ProductResponse>> getAllProducts();
 
     CommonResponse<List<ProductResponse>> getProductByName(String name);
 
     CommonResponse<List<ProductResponse>> getProductByBrand(String brand);
-
-    CommonResponse<ProductResponse> update(String id, ProductRequest payload);
 
     void delete(String id);
 }

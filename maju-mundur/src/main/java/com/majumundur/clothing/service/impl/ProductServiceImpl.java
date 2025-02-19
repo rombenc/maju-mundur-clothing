@@ -3,19 +3,23 @@ package com.majumundur.clothing.service.impl;
 import com.majumundur.clothing.dto.CommonResponse;
 import com.majumundur.clothing.dto.request.ProductRequest;
 import com.majumundur.clothing.dto.response.ProductResponse;
+import com.majumundur.clothing.entity.Merchant;
 import com.majumundur.clothing.entity.Product;
 import com.majumundur.clothing.entity.User;
 import com.majumundur.clothing.entity.enums.SizeChart;
 import com.majumundur.clothing.exception.ProductException;
+import com.majumundur.clothing.exception.ResourceNotFoundException;
 import com.majumundur.clothing.exception.UnauthorizedException;
 import com.majumundur.clothing.repository.ProductRepository;
 import com.majumundur.clothing.service.AuthenticationService;
 import com.majumundur.clothing.service.ProductService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -24,51 +28,76 @@ public class ProductServiceImpl implements ProductService {
     private final ProductRepository productRepository;
     private final AuthenticationService authenticationService;
 
+    @Transactional
     @Override
-    public CommonResponse<Object> createProduct(String userMerchantId, ProductRequest payload) {
-
+    public CommonResponse<ProductResponse> createProduct(ProductRequest request) {
         User user = authenticationService.getLoginUser();
-
-        boolean isCustomerRole = user.getAuthorities().stream()
-                .anyMatch(authority -> authority.getAuthority().equals("MERCHANT"));
-
-        if (!isCustomerRole) {
-            throw new UnauthorizedException("Only users with role MERCHANT can create a merchant account.");
-        }
-
-        if (payload.getProductCode() == null || payload.getProductCode().isEmpty()) {
-            throw new ProductException("Product code is required", 400);
-        }
+        Merchant merchant = user.getMerchant();
 
         var product = Product.builder()
-                .productCode(payload.getProductCode())
-                .name(payload.getName())
-                .brand(payload.getBrand())
-                .size(SizeChart.valueOf(payload.getSize()))
-                .price(payload.getPrice())
-                .stock(payload.getStock())
-                .description(payload.getDescription())
+                .productCode(request.getProductCode())
+                .name(request.getName())
+                .brand(request.getBrand())
+                .size(SizeChart.valueOf(request.getSize()))
+                .price(request.getPrice())
+                .stock(request.getStock())
+                .description(request.getDescription())
+                .merchant(merchant)
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        var savedProduct = productRepository.save(product);
-
-        return CommonResponse.builder()
-                .statusCode(200)
-                .message("Successfully created a product")
-                .data(savedProduct)
+        Product savedProduct = productRepository.save(product);
+        return CommonResponse.<ProductResponse>builder()
+                .statusCode(201)
+                .message("Product has been created")
+                .data(toProductResponse(savedProduct))
                 .build();
     }
 
+    @Transactional
+    @Override
+    public CommonResponse<ProductResponse> updateProduct(String productId, ProductRequest request) {
+        User user = authenticationService.getLoginUser();
+        Merchant merchant = user.getMerchant();
+
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + productId));
+
+        if (!product.getMerchant().equals(merchant)) {
+            throw new UnauthorizedException("You are not authorized to update this product");
+        }
+
+        product.setProductCode(request.getProductCode());
+        product.setName(request.getName());
+        product.setBrand(request.getBrand());
+        product.setSize(SizeChart.valueOf(request.getSize()));
+        product.setPrice(request.getPrice());
+        product.setStock(request.getStock());
+        product.setDescription(request.getDescription());
+        product.setLastUpdate(LocalDateTime.now());
+
+        Product updatedProduct = productRepository.save(product);
+
+        return CommonResponse.<ProductResponse>builder()
+                .statusCode(200)
+                .message("Successfully updated the product")
+                .data(toProductResponse(updatedProduct))
+                .build();
+    }
 
     @Override
-    public CommonResponse<List<Product>> getAllProducts() {
-        List<Product> products = productRepository.findAll();
-        return CommonResponse.<List<Product>>builder()
+    public CommonResponse<List<ProductResponse>> getAllProducts() {
+        List<ProductResponse> products = productRepository.findAll()
+                .stream()
+                .map(this::toProductResponse)
+                .collect(Collectors.toList());
+
+        return CommonResponse.<List<ProductResponse>>builder()
                 .statusCode(200)
-                .message("Successfully fetched all products")
+                .message("Successfully retrieved all products")
                 .data(products)
                 .build();
+
     }
 
     @Override
@@ -125,27 +154,6 @@ public class ProductServiceImpl implements ProductService {
 
 
     @Override
-    public CommonResponse<ProductResponse> update(String id, ProductRequest payload) {
-        var product = productRepository.findById(id)
-                .orElseThrow(() -> new ProductException("Product not found", 404));
-
-        product.setProductCode(payload.getProductCode());
-        product.setBrand(payload.getBrand());
-        product.setPrice(payload.getPrice());
-        product.setStock(payload.getStock());
-        product.setDescription(payload.getDescription());
-        product.setLastUpdate(LocalDateTime.now());
-
-        var updatedProduct = productRepository.save(product);
-
-        return CommonResponse.<ProductResponse>builder()
-                .statusCode(200)
-                .message("Successfully updated the product")
-                .data(toProductResponse(updatedProduct))
-                .build();
-    }
-
-    @Override
     public void delete(String id) {
         var product = productRepository.findById(id)
                 .orElseThrow(() -> new ProductException("Product with given id: " + id + " can't be found", 404));
@@ -157,6 +165,7 @@ public class ProductServiceImpl implements ProductService {
     private ProductResponse toProductResponse(Product product) {
         return ProductResponse.builder()
                 .id(product.getId())
+                .merchantId(String.valueOf(product.getMerchant().getId()))
                 .productCode(product.getProductCode())
                 .name(product.getName())
                 .brand(product.getBrand())

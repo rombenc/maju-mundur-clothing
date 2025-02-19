@@ -7,6 +7,7 @@ import com.majumundur.clothing.entity.Customer;
 import com.majumundur.clothing.entity.Order;
 import com.majumundur.clothing.entity.Payment;
 import com.majumundur.clothing.entity.User;
+import com.majumundur.clothing.entity.enums.OrderStatus;
 import com.majumundur.clothing.exception.OrderException;
 import com.majumundur.clothing.exception.PaymentException;
 import com.majumundur.clothing.repository.CustomerRepository;
@@ -70,7 +71,7 @@ public class PaymentServiceImpl implements PaymentService {
         Payment savedPayment = paymentRepository.save(payment);
 
         // Update status order menjadi "PAID"
-        order.setStatus("PAID");
+        order.setStatus(OrderStatus.PAID);
         orderRepository.save(order);
 
         return CommonResponse.<PaymentResponse>builder()

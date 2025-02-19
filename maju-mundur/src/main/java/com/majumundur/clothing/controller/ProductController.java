@@ -22,19 +22,18 @@ public class ProductController {
 
     private final ProductService productService;
 
-    @PostMapping("/{merchantId}")
+    @PostMapping
     @PreAuthorize("hasAuthority('MERCHANT')")
-    public ResponseEntity<CommonResponse<Object>> createProduct(
-            @PathVariable String merchantId,
+    public ResponseEntity<CommonResponse<ProductResponse>> createProduct(
             @Valid @RequestBody ProductRequest payload) {
 
-        CommonResponse<Object> response = productService.createProduct(merchantId, payload);
+        CommonResponse<ProductResponse> response = productService.createProduct(payload);
         return ResponseEntity.status(response.getStatusCode()).body(response);
     }
 
     @GetMapping
-    public ResponseEntity<CommonResponse<List<Product>>> getAllProducts() {
-        CommonResponse<List<Product>> response = productService.getAllProducts();
+    public ResponseEntity<CommonResponse<List<ProductResponse>>> getAllProducts() {
+        CommonResponse<List<ProductResponse>> response = productService.getAllProducts();
         return ResponseEntity.status(response.getStatusCode()).body(response);
     }
 
@@ -52,7 +51,7 @@ public class ProductController {
 
     @PutMapping("/{id}")
     public ResponseEntity<CommonResponse<ProductResponse>> updateProduct(@PathVariable String id, @Valid @RequestBody ProductRequest payload) {
-        CommonResponse<ProductResponse> response = productService.update(id, payload);
+        CommonResponse<ProductResponse> response = productService.updateProduct(id, payload);
         return ResponseEntity.status(response.getStatusCode()).body(response);
     }
 

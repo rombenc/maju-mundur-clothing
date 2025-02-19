@@ -1,4 +1,4 @@
-# MAJU-MUNDUR E-Commerce API
+le# MAJU-MUNDUR E-Commerce API
 
 ## Overview
 MAJU-MUNDUR is an e-commerce application providing a comprehensive set of APIs for managing products, orders, payments, and user authentication.
@@ -53,11 +53,13 @@ MAJU-MUNDUR is an e-commerce application providing a comprehensive set of APIs f
 - `GET /merchants`: Retrieve all merchants
 - `POST /merchants`: Create a new merchant
 - `PUT /merchants/{merchantId}`: Update merchant details
+- `GET /merchants/sales-report`: Tracking sales report
 
 ### Customers
 - `GET /api/customers`: Retrieve all customers
 - `POST /api/customers`: Create a new customer
 - `PUT /api/customers/{customerId}`: Update customer details
+- `GET /api/customers/history`: Tracking order history
 
 ## Request/Response Formats
 - Most endpoints use JSON for request and response bodies

@@ -38,10 +38,6 @@ public class Customer {
     @JsonIgnore
     private List<Cart> cart;
 
-    @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL)
-    @JsonIgnore
-    private List<History> history;
-
     private BigInteger points;
 
     @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, orphanRemoval = true)

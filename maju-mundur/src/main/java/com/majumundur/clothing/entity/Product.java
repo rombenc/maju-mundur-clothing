@@ -1,5 +1,6 @@
 package com.majumundur.clothing.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.majumundur.clothing.entity.enums.SizeChart;
 import jakarta.persistence.*;
 import lombok.*;
@@ -37,6 +38,7 @@ public class Product {
     private LocalDateTime lastUpdate;
 
     @ManyToOne
+    @JsonIgnore
     @JoinColumn(name = "merchant_id")
     private Merchant merchant;
 

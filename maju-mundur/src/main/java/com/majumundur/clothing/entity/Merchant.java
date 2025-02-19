@@ -1,5 +1,6 @@
 package com.majumundur.clothing.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -34,5 +35,6 @@ public class Merchant {
     private LocalDate createdAt;
 
     @OneToMany(mappedBy = "merchant", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnoreProperties("merchant")
     private List<Product> productList;
 }

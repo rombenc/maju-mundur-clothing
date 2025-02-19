@@ -1,7 +1,6 @@
 package com.majumundur.clothing.dto.response;
 
 import com.majumundur.clothing.entity.Address;
-import com.majumundur.clothing.entity.History;
 import com.majumundur.clothing.entity.User;
 import lombok.Builder;
 import lombok.Data;
@@ -24,8 +23,6 @@ public class CustomerResponse {
     private String phoneNumber;
 
     private String email;
-
-    private List<History> history;
 
     private BigInteger points;
 

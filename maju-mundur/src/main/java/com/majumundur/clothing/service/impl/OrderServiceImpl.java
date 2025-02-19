@@ -2,24 +2,28 @@ package com.majumundur.clothing.service.impl;
 
 import com.majumundur.clothing.dto.CommonResponse;
 import com.majumundur.clothing.dto.request.OrderRequest;
+import com.majumundur.clothing.dto.response.OrderHistoryResponse;
 import com.majumundur.clothing.dto.response.OrderResponse;
+import com.majumundur.clothing.dto.response.ProductOrderInfo;
+import com.majumundur.clothing.dto.response.SalesReportResponse;
 import com.majumundur.clothing.entity.*;
+import com.majumundur.clothing.entity.enums.OrderStatus;
 import com.majumundur.clothing.exception.OrderException;
 import com.majumundur.clothing.exception.ProductException;
+import com.majumundur.clothing.exception.UnauthorizedException;
 import com.majumundur.clothing.repository.CartRepository;
 import com.majumundur.clothing.repository.OrderRepository;
 import com.majumundur.clothing.repository.ProductRepository;
 import com.majumundur.clothing.service.AuthenticationService;
 import com.majumundur.clothing.service.OrderService;
-import jakarta.persistence.LockModeType;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.jpa.repository.Lock;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -56,7 +60,7 @@ public class OrderServiceImpl implements OrderService {
         Order order = Order.builder()
                 .customer(customer)
                 .orderDate(LocalDateTime.now())
-                .status("PENDING")
+                .status(OrderStatus.PENDING)
                 .totalPrice(totalPrice)
                 .build();
 
@@ -77,9 +81,8 @@ public class OrderServiceImpl implements OrderService {
     }
 
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
     private void reduceProductStock(Cart cartItem) {
-        Product product = productRepository.findById(cartItem.getProduct().getId())
+        Product product = productRepository.findByIdForUpdate(cartItem.getProduct().getId())
                 .orElseThrow(() -> new ProductException("Product not found", 404));
 
         if (product.getStock() < cartItem.getQuantity()) {
@@ -99,7 +102,7 @@ public class OrderServiceImpl implements OrderService {
         });
     }
 
-    @Transactional
+    @Transactional(rollbackFor = OrderException.class)
     public void rollbackOrderStock(String orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new OrderException("Order not found", 404));
@@ -149,7 +152,7 @@ public class OrderServiceImpl implements OrderService {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new OrderException("Order not found", 404));
 
-        order.setStatus(status);
+        order.setStatus(OrderStatus.valueOf(status));
         Order updatedOrder = orderRepository.save(order);
 
         return CommonResponse.<OrderResponse>builder()
@@ -159,12 +162,67 @@ public class OrderServiceImpl implements OrderService {
                 .build();
     }
 
+    @Override
+    public List<OrderHistoryResponse> getCustomerOrderHistory() {
+        User user = authenticationService.getLoginUser();
+        Customer customer = user.getCustomer();
+
+        if (customer == null) {
+            throw new OrderException("Only customers can access order history", 403);
+        }
+
+        List<Order> orders = orderRepository.findOrdersByCustomerId(customer.getId());
+
+        return orders.stream().map(order -> new OrderHistoryResponse(
+                order.getId(),
+                order.getOrderDate(),
+                String.valueOf(order.getStatus()),
+                order.getTotalPrice(),
+                order.getCarts().stream().map(cart -> new ProductOrderInfo(
+                        cart.getProduct().getName(),
+                        cart.getQuantity(),
+                        cart.getPrice()
+                )).toList()
+        )).toList();
+    }
+
+    @Override
+    public CommonResponse<List<SalesReportResponse>> getSalesReport() {
+        User user = authenticationService.getLoginUser();
+        Merchant merchant = user.getMerchant();
+
+        if (merchant == null) {
+            throw new UnauthorizedException("Only merchants can view sales reports.");
+        }
+
+        List<Order> orders = orderRepository.findOrdersByMerchantId(merchant.getId());
+        List<SalesReportResponse> reports = orders.stream()
+                .map(this::toSalesReportResponse)
+                .collect(Collectors.toList());
+
+        return CommonResponse.<List<SalesReportResponse>>builder()
+                .statusCode(200)
+                .message("Sales report fetched successfully")
+                .data(reports)
+                .build();
+    }
+
+    private SalesReportResponse toSalesReportResponse(Order order) {
+        return SalesReportResponse.builder()
+                .orderId(order.getId())
+                .customerName(order.getCustomer().getFullName()) // Tambahkan nama customer
+                .totalPrice(order.getTotalPrice())
+                .orderDate(order.getOrderDate())
+                .status(String.valueOf(order.getStatus()))
+                .build();
+    }
+
     private OrderResponse toOrderResponse(Order order) {
         return OrderResponse.builder()
                 .id(order.getId())
                 .customerId(order.getCustomer().getId())
                 .orderDate(order.getOrderDate())
-                .status(order.getStatus())
+                .status(String.valueOf(order.getStatus()))
                 .totalPrice(order.getTotalPrice())
                 .build();
     }

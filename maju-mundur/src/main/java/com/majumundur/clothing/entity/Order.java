@@ -1,6 +1,7 @@
 package com.majumundur.clothing.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.majumundur.clothing.entity.enums.OrderStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -26,8 +27,13 @@ public class Order {
     private Customer customer;
 
     private LocalDateTime orderDate;
-    private String status;
+    @Enumerated(EnumType.STRING)
+    private OrderStatus status;
     private BigDecimal totalPrice;
+
+    @ManyToOne
+    @JoinColumn(name = "merchant_id", nullable = true)
+    private Merchant merchant;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonIgnore
